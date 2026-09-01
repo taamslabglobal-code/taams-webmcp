@@ -1,0 +1,33 @@
+# Dependencies (this project has none, but keep the guard)
+node_modules/
+
+# Secrets — nothing here needs them; the TAAMs API this page calls is public
+.env
+.env.*
+
+# Build / deploy scratch
+.netlify/
+dist/
+build/
+
+# Python (the verification harness in test/ runs under Playwright)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Working artefacts of the recording process, not project source.
+shots/video/*.webm
+shots/video/chk*.png
+shots/build/
+shots/TAAMs-WebMCP-demo.mp4

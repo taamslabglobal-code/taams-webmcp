@@ -1,0 +1,31 @@
+# Static site: no build step, no dependencies, no framework.
+# The page is plain HTML plus three ES modules; everything it needs at runtime
+# comes from the TAAMs public API over CORS.
+
+# No `command` key at all: an empty string reads as "a build that produced
+# nothing" on some deploy paths, which is not the same as "there is no build".
+[build]
+  publish = "."
+
+# Do not rewrite unknown paths to index.html. This is not a single-page app with
+# client-side routing, and a catch-all would turn a typo'd module path into a
+# 200 that serves HTML where JavaScript was expected — which fails as a MIME
+# error rather than as an honest 404.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Source files are small and change together; keep them revalidating so a
+# redeploy is visible immediately rather than after a cache expiry.
+[[headers]]
+  for = "/src/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

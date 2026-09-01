@@ -1,0 +1,2 @@
+# Keep line endings LF in the repository regardless of the machine that commits.
+* text=auto eol=lf
