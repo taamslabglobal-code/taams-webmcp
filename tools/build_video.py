@@ -37,6 +37,21 @@ NARRATION = pathlib.Path(r"C:/WORK/trim_0.35.m4a")
 OUT = ROOT / "shots" / "TAAMs-WebMCP-demo.mp4"
 
 W, H, FPS = 1920, 1080, 30
+
+# Screen recordings are the hard case for a codec: hard edges, small text, flat
+# colour. Three things were costing quality here.
+#
+#  1. Every segment was written at CRF 20 and then the join was re-encoded at
+#     19 — two lossy generations, and the first one is where the text softened.
+#     Intermediates are now near-lossless; the final pass is the only lossy one.
+#  2. The scaler defaulted to bicubic, which blurs on the way up. The agent take
+#     is 1088x896 going to 1080 tall, so it is scaling up, and lanczos keeps the
+#     letterforms.
+#  3. CRF 19 is a fine number for camera footage and too coarse for a page of
+#     4pt table rows.
+CRF_INTERMEDIATE = "12"    # visually lossless working copies
+CRF_FINAL = "15"
+SCALE_FLAGS = "flags=lanczos+accurate_rnd+full_chroma_int"
 FONT = "C\\:/Windows/Fonts/segoeui.ttf"        # ffmpeg wants the colon escaped
 FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
 
@@ -103,8 +118,8 @@ def title_card(path: pathlib.Path) -> None:
         )
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-f", "lavfi", "-i", f"color=c=0x0B0E14:s={W}x{H}:r={FPS}:d={OPENING}",
-         "-vf", ",".join(draws), "-c:v", "libx264", "-preset", "medium",
-         "-crf", "20", "-pix_fmt", "yuv420p", str(path)])
+         "-vf", ",".join(draws), "-c:v", "libx264", "-preset", "fast",
+         "-crf", CRF_INTERMEDIATE, "-pix_fmt", "yuv420p", str(path)])
 
 
 def normalise(src: pathlib.Path, start: float, dur: float, out: pathlib.Path,
@@ -116,25 +131,21 @@ def normalise(src: pathlib.Path, start: float, dur: float, out: pathlib.Path,
     the action is. Anchored high and left rather than centred, because centring
     a 16:9 crop lands on empty page.
     """
-    if zoom > 1.0:
-        cw, ch = f"iw/{zoom}", f"ih/{zoom}"
-        vf = (f"crop={cw}:{ch}:0:0,"
-              f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
-              f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x0B0E14,fps={FPS},setsar=1")
-    else:
-        vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
-              f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x0B0E14,fps={FPS},setsar=1")
+    crop = f"crop=iw/{zoom}:ih/{zoom}:0:0," if zoom > 1.0 else ""
+    vf = (f"{crop}"
+          f"scale={W}:{H}:force_original_aspect_ratio=decrease:{SCALE_FLAGS},"
+          f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x0B0E14,fps={FPS},setsar=1")
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-ss", str(start), "-i", str(src), "-t", str(dur),
-         "-vf", vf, "-an", "-c:v", "libx264", "-preset", "medium",
-         "-crf", "20", "-pix_fmt", "yuv420p", str(out)])
+         "-vf", vf, "-an", "-c:v", "libx264", "-preset", "fast",
+         "-crf", CRF_INTERMEDIATE, "-pix_fmt", "yuv420p", str(out)])
 
 
 def freeze(src: pathlib.Path, at: float, dur: float, out: pathlib.Path) -> None:
     still = WORK / "_freeze.png"
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-ss", str(at), "-i", str(src), "-frames:v", "1", str(still)])
-    vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+    vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease:{SCALE_FLAGS},"
           f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x0B0E14,setsar=1,"
           f"drawtext=fontfile='{FONT_B}':text='taams-sourcing-desk.netlify.app':"
           f"fontsize=44:fontcolor=white:box=1:boxcolor=0x0B0E14@0.85:boxborderw=18:"
@@ -143,8 +154,8 @@ def freeze(src: pathlib.Path, at: float, dur: float, out: pathlib.Path) -> None:
           f"fontsize=30:fontcolor=0xC7CCD6:x=(w-text_w)/2:y=h-120:enable='gte(t,2.5)'")
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-loop", "1", "-i", str(still), "-t", str(dur), "-r", str(FPS),
-         "-vf", vf, "-c:v", "libx264", "-preset", "medium",
-         "-crf", "20", "-pix_fmt", "yuv420p", str(out)])
+         "-vf", vf, "-c:v", "libx264", "-preset", "fast",
+         "-crf", CRF_INTERMEDIATE, "-pix_fmt", "yuv420p", str(out)])
 
 
 # Captions, on the final timeline. Four only — see EDIT-SHEET.md.
@@ -240,7 +251,8 @@ def main() -> int:
          "-vf", caption_filter(),
          "-af", f"afade=t=out:st={max(0.0, voice - 0.7):.2f}:d=0.7",
          "-map", "0:v", "-map", "1:a",
-         "-c:v", "libx264", "-preset", "slow", "-crf", "19",
+         "-c:v", "libx264", "-preset", "slow", "-crf", CRF_FINAL,
+         "-x264-params", "aq-mode=3:psy-rd=0.4:deblock=-1,-1",
          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
          str(OUT)])
 
