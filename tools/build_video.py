@@ -47,20 +47,29 @@ FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
 # small in a video a judge watches in a window. They get zoomed into the part
 # that matters. The agent take is already smaller than the canvas, so it is
 # pillarboxed at 1.0 rather than blown up.
+#
+# Shortening the opening freed 14s that has to go back into the body — left in
+# the closing freeze it would have become half a minute of a still image.
+# It went to the two stretches that reward dwelling: the cards landing, and the
+# approval modal being read.
 SEGMENTS = [
     ("A", TAKE_A, 0.0, 20.0, 1.45),     # person searches — zoom on search + card
     ("B1", TAKE_B, 30.0, 12.0, 1.0),    # badge + question 1 on screen
     ("B2", TAKE_B, 42.0, 26.0, 1.0),    # lookups landing
-    ("B3", TAKE_B, 74.0, 26.0, 1.0),    # cards appear, highlight follows <- the entry
-    ("B4", TAKE_B, 118.0, 34.0, 1.0),   # question 2 -> approval modal
-    ("C", TAKE_C, 8.0, 16.0, 1.35),     # person does the same by hand
+    ("B3", TAKE_B, 74.0, 30.0, 1.0),    # cards appear, highlight follows <- the entry
+    ("B4", TAKE_B, 118.0, 41.0, 1.0),   # question 2 -> approval modal, held
+    ("C", TAKE_C, 8.0, 20.0, 1.35),     # person does the same by hand
 ]
 FREEZE_AT = 90.0                   # B, both cards on the board
 TAIL = 1.5                         # picture held after the voice stops
 LIMIT = 180.0                      # contest hard limit
 MIN_FREEZE = 8.0                   # the closing shot still has to read as a shot
 
-OPENING = 26.0                     # black-screen title cards
+# Devpost's own advice: "show your project working in the first 15 seconds."
+# The opening was 26s of text on black, which put the first working screen at
+# 0:26. Cut to 12s: the two questions still land, and the page arrives inside
+# the window judges are told to watch.
+OPENING = 12.0
 
 
 def run(args, **kw):
@@ -80,12 +89,9 @@ def title_card(path: pathlib.Path) -> None:
     """
     lines = [
         # (text, size, y, appear, disappear)
-        ("Is this a real supplier?", 74, "(h/2)-120", 1.2, 12.6),
-        ("Is this a real price?", 74, "(h/2)-20", 4.0, 12.6),
-        ("Neither is a software question.", 40, "(h/2)+110", 7.5, 12.6),
-        ("customs portals", 56, "(h/2)-130", 14.2, 25.6),
-        ("cold calls", 56, "(h/2)-40", 15.6, 25.6),
-        ("guesswork", 56, "(h/2)+50", 17.0, 25.6),
+        ("Is this a real supplier?", 74, "(h/2)-90", 0.6, 11.6),
+        ("Is this a real price?", 74, "(h/2)+10", 2.6, 11.6),
+        ("Today: customs portals, cold calls, guesswork.", 38, "(h/2)+140", 5.6, 11.6),
     ]
     draws = []
     for text, size, y, t0, t1 in lines:
@@ -141,12 +147,16 @@ def freeze(src: pathlib.Path, at: float, dur: float, out: pathlib.Path) -> None:
          "-crf", "20", "-pix_fmt", "yuv420p", str(out)])
 
 
-# Captions, on the final timeline. Five only — see EDIT-SHEET.md.
+# Captions, on the final timeline. Four only — see EDIT-SHEET.md.
+#
+# These are absolute times into the finished cut, so they move whenever a
+# segment length does. Segment boundaries with the current SEGMENTS:
+#   open 0-12 · A 12-32 · B1 32-44 · B2 44-70 · B3 70-100 · B4 100-141 · C 141-161
 CAPTIONS = [
-    ("Tier A  -  lookup", 30.0, 36.0),
-    ("Tier B  -  screen control", 87.0, 94.0),
-    ("0 network requests", 96.0, 103.0),
-    ("Tier C  -  human approval", 116.0, 123.0),
+    ("Tier A  -  lookup", 16.0, 22.0),
+    ("Tier B  -  screen control", 73.0, 80.0),
+    ("0 network requests", 84.0, 91.0),
+    ("Tier C  -  human approval", 106.0, 113.0),
 ]
 
 
