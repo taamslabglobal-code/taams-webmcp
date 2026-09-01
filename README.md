@@ -8,7 +8,7 @@ Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) on top of
 [TAAMs](https://taamsglobal.com), a B2B marketplace for officially imported food.
 
 - **Live demo:** https://taams-sourcing-desk.netlify.app
-- **Demo video (3 min):** https://youtu.be/pwDQt4hxYMk
+- **Demo video (3 min):** https://youtu.be/z68JTa_CJrI
 - **License:** MIT
 - **Dependencies:** none. One static page, no build step, no backend of its own.
 

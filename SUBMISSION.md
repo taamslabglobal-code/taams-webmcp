@@ -247,6 +247,6 @@ this submission.
 
 - Repository: https://github.com/taamslabglobal-code/taams-webmcp
 - Live demo: https://taams-sourcing-desk.netlify.app
-- Demo video: https://youtu.be/pwDQt4hxYMk
+- Demo video: https://youtu.be/z68JTa_CJrI
 - TAAMs: https://taamsglobal.com
 - License: MIT — Copyright (c) 2026 Jongseok Mun (TAAMs)
