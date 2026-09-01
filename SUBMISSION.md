@@ -245,8 +245,8 @@ this submission.
 
 ## Links
 
-- Repository: `TBD`
-- Live demo: `TBD`
-- Demo video: `TBD`
+- Repository: https://github.com/taamslabglobal-code/taams-webmcp
+- Live demo: https://taams-sourcing-desk.netlify.app
+- Demo video: `pending upload`
 - TAAMs: https://taamsglobal.com
 - License: MIT — Copyright (c) 2026 Jongseok Mun (TAAMs)

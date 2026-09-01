@@ -7,8 +7,8 @@ using the same buttons and the same functions a person clicks.
 Built for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) on top of
 [TAAMs](https://taamsglobal.com), a B2B marketplace for officially imported food.
 
-- **Live demo:** `TBD`
-- **Demo video (3 min):** `TBD`
+- **Live demo:** https://taams-sourcing-desk.netlify.app
+- **Demo video (3 min):** `pending upload`
 - **License:** MIT
 - **Dependencies:** none. One static page, no build step, no backend of its own.
 
@@ -207,7 +207,7 @@ enabled (`chrome://flags/#enable-webmcp-testing`):
 No build step, no dependencies, no keys.
 
 ```bash
-git clone https://github.com/USER/taams-webmcp.git
+git clone https://github.com/taamslabglobal-code/taams-webmcp.git
 cd taams-webmcp
 python -m http.server 8123
 # then open http://127.0.0.1:8123/
