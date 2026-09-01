@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebMCP probe</title>
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 18px; }
+  .row { padding: 8px 12px; border-left: 3px solid #ccc; margin: 6px 0; background: #fafafa; }
+  .ok { border-color: #16a34a; } .no { border-color: #dc2626; }
+  code { background: #eee; padding: 1px 5px; border-radius: 3px; }
+  pre { background: #111; color: #eee; padding: 12px; overflow-x: auto; border-radius: 6px; }
+</style>
+
+<h1>WebMCP environment probe</h1>
+<p>Confirms whether this browser exposes the WebMCP tool-registration API, and
+   whether a live TAAMs API call succeeds from page context.</p>
+<div id="out"></div>
+<pre id="log">running…</pre>
+
+<script type="module">
+const out = document.getElementById('out');
+const log = document.getElementById('log');
+const lines = [];
+const say = (label, ok, detail = '') => {
+  const d = document.createElement('div');
+  d.className = 'row ' + (ok ? 'ok' : 'no');
+  d.innerHTML = `<strong>${ok ? 'PASS' : 'FAIL'}</strong> — ${label}` +
+                (detail ? `<br><small>${detail}</small>` : '');
+  out.appendChild(d);
+  lines.push(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? '  :: ' + detail : ''}`);
+  log.textContent = lines.join('\n');
+};
+
+// 1. Which object carries the API? The spec moved; support both.
+const mc = document.modelContext ?? navigator.modelContext;
+say('modelContext object present', !!mc,
+    mc ? (document.modelContext ? 'document.modelContext' : 'navigator.modelContext')
+       : 'neither document.modelContext nor navigator.modelContext — enable chrome://flags/#enable-webmcp-testing and restart Chrome');
+
+// 2. registerTool present?
+const canRegister = !!(mc && 'registerTool' in mc);
+say('registerTool available', canRegister,
+    mc ? 'methods: ' + Object.getOwnPropertyNames(Object.getPrototypeOf(mc)).join(', ') : '—');
+
+// 3. Actually register one, the way the challenge expects.
+if (canRegister) {
+  try {
+    const controller = new AbortController();
+    await mc.registerTool({
+      name: 'probe_echo',
+      description: 'Echo a string back. Registered only to prove WebMCP works.',
+      inputSchema: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'anything' } },
+        required: ['text'],
+      },
+      execute: async ({ text }) => ({ content: [{ type: 'text', text: `echo: ${text}` }] }),
+    }, { signal: controller.signal });
+    say('registerTool() accepted a tool', true, 'tool name: probe_echo');
+  } catch (e) {
+    say('registerTool() accepted a tool', false, e.message);
+  }
+}
+
+// 4. requestUserInteraction — needed for the human-approval action tool.
+say('requestUserInteraction available', !!(mc && 'requestUserInteraction' in mc),
+    'used to gate the quote-request tool behind an explicit human confirm');
+
+// 5. Live TAAMs call from page context (this is where Cloudflare would bite).
+try {
+  const u = new URL('https://taamsglobal.com/api/v1/product_search');
+  u.search = new URLSearchParams({
+    query: 'mango', start_date: '2025-01-01', end_date: '2025-12-31',
+    lang: 'en', mode: 'product',
+  });
+  const r = await fetch(u, { headers: { Accept: 'application/json' } });
+  const b = await r.json();
+  say('TAAMs API reachable from page (CORS + Cloudflare)', r.ok && Array.isArray(b),
+      r.ok ? `${b.length} rows — first: ${b[0]?.name_en} (${b[0]?.name}) ${b[0]?.totalCount}`
+           : `HTTP ${r.status}`);
+} catch (e) {
+  say('TAAMs API reachable from page (CORS + Cloudflare)', false, e.message);
+}
+</script>

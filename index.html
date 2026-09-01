@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAAMs Import Sourcing Desk -- WebMCP demo</title>
+<meta name="description" content="Search verified Korean food-import suppliers, priced from real customs clearance data -- usable by hand, and by any WebMCP-enabled agent.">
+<style>
+  :root {
+    --blue: #1d4ed8;
+    --blue-dark: #1e40af;
+    --red: #dc2626;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4 { margin: 0 0 8px; }
+  p { margin: 0 0 8px; }
+  .hidden { display: none !important; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+
+  #busyBar {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200;
+    background: linear-gradient(90deg, var(--blue), #60a5fa);
+    transform: scaleX(0.05); transform-origin: left; opacity: 0;
+    transition: opacity .2s ease;
+  }
+  #busyBar.active { opacity: 1; animation: busyGrow 1.1s ease-in-out infinite; }
+  @keyframes busyGrow {
+    0% { transform: scaleX(.05); }
+    50% { transform: scaleX(.6); }
+    100% { transform: scaleX(.95); }
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 14px 24px; background: var(--card-bg);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
+    flex-wrap: wrap;
+  }
+  .topbar h1 { font-size: 17px; }
+  .topbar p { font-size: 12.5px; color: var(--text-muted); margin: 0; }
+  .badge {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 99px;
+    border: 1px solid var(--border); white-space: nowrap;
+  }
+  .badge-ready { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+  .badge-off { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
+  .layout {
+    display: grid; grid-template-columns: 1.05fr 1.45fr 0.85fr;
+    gap: 16px; padding: 16px 24px 48px; align-items: start;
+  }
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .col { min-width: 0; }
+
+  .card {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .card h3 { font-size: 14px; }
+  .card .hint { font-weight: 400; color: var(--text-muted); font-size: 12px; }
+  .empty-hint {
+    border-style: dashed; color: var(--text-muted); font-size: 13px;
+    text-align: center; padding: 28px 16px;
+  }
+
+  .search-wrap { position: relative; margin-bottom: 16px; }
+  #searchInput {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; background: var(--card-bg); color: var(--text);
+  }
+  #searchInput:disabled { opacity: .6; }
+  .search-results {
+    position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+    max-height: 280px; overflow-y: auto; box-shadow: 0 8px 24px rgba(15, 23, 42, .12);
+    list-style: none; margin: 0; padding: 4px;
+  }
+  .search-results li {
+    padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    display: flex; justify-content: space-between; gap: 8px; font-size: 13px;
+  }
+  .search-results li:hover, .search-results li:focus { background: #eff6ff; }
+  .search-results .no-results { color: var(--text-muted); cursor: default; }
+  .res-en { color: var(--text-muted); margin-left: 6px; }
+  .res-cnt { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .product-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  #productNamePrimary { font-size: 20px; font-weight: 700; }
+  #productNameSecondary { font-size: 13px; color: var(--text-muted); }
+  #productPrice {
+    display: inline-block; margin-top: 8px; background: #eff6ff; color: var(--blue);
+    font-weight: 700; padding: 4px 12px; border-radius: 99px; font-size: 14px;
+  }
+  .price-note {
+    font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a;
+    padding: 6px 10px; border-radius: 6px; margin: 10px 0;
+  }
+  .spark { display: block; max-width: 100%; margin: 10px 0; }
+  .btn {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card-bg); color: var(--text);
+  }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
+  .btn-primary:hover:not(:disabled) { background: var(--blue-dark); }
+  .btn-ghost:hover { background: #f1f5f9; }
+  .btn-secondary { margin-left: 8px; }
+  .product-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+
+  #importerList { list-style: none; margin: 0; padding: 0; }
+  #importerList li {
+    display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px;
+    padding: 6px 0; border-bottom: 1px dashed var(--border);
+  }
+  #importerList li:last-child { border-bottom: none; }
+  .imp-name { flex: 1; min-width: 0; }
+  .imp-name-en { display: block; color: var(--text-muted); font-size: 11px; }
+  .imp-country { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
+  .imp-count { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .empty-row { color: var(--text-muted); text-align: center; }
+  .more-row td {
+    color: var(--text-muted); font-size: 11.5px; text-align: center;
+    padding: 8px 6px; background: var(--bg);
+  }
+
+  .comparison-board {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  @media (max-width: 640px) { .comparison-board { grid-template-columns: 1fr; } }
+  .compare-card {
+    position: relative; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; background: var(--bg); cursor: pointer; min-height: 128px;
+  }
+  .compare-card.is-focused { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(29,78,216,.15); }
+  .compare-remove {
+    position: absolute; top: 4px; right: 4px; border: none; background: transparent;
+    font-size: 15px; line-height: 1; cursor: pointer; color: var(--text-muted); padding: 2px 4px;
+  }
+  .compare-remove:hover { color: var(--red); }
+  .compare-name { font-weight: 600; font-size: 13px; padding-right: 14px; }
+  .compare-name-en { display: block; font-weight: 400; color: var(--text-muted); font-size: 11px; }
+  .compare-price { color: var(--blue); font-weight: 600; font-size: 13px; margin-top: 4px; }
+  .compare-spark { margin-top: 2px; }
+  .compare-suppliers { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .compare-slot-empty {
+    border: 1px dashed var(--border); border-radius: 8px; min-height: 128px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: 8px; font-size: 11px; color: var(--text-muted);
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .chip {
+    border: 1px solid var(--border); background: var(--card-bg); border-radius: 99px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--text);
+  }
+  .chip:hover { border-color: var(--blue); }
+  .chip-active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .chip-count { opacity: .75; margin-left: 3px; }
+  .chip-all { font-weight: 600; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
+  th, td {
+    padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  td.td-action { width: 64px; white-space: nowrap; }
+  td.td-count { width: 72px; }
+  tr.row-dim { opacity: .32; }
+  tr.row-highlight { background: #eff6ff; }
+  .loc-badge { margin-left: 4px; font-size: 10px; color: var(--text-muted); }
+  .btn-mini {
+    font-size: 11px; padding: 3px 8px; border: 1px solid var(--blue); color: var(--blue);
+    background: var(--card-bg); border-radius: 6px; cursor: pointer;
+  }
+  .btn-mini:hover { background: var(--blue); color: #fff; }
+
+  .rfq-fields { display: grid; grid-template-columns: 84px 1fr; gap: 6px 10px; font-size: 13px; margin: 8px 0; }
+  .rfq-fields dt { color: var(--text-muted); font-weight: 600; }
+  .rfq-fields dd { margin: 0; word-break: break-word; }
+  .rfq-status {
+    font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 99px; margin-left: 8px;
+    display: inline-block; vertical-align: middle;
+  }
+  .rfq-status.pending { background: #fef3c7; color: #92400e; }
+  .rfq-status.editing { background: #e0e7ff; color: #3730a3; }
+  .rfq-status.sent { background: #dcfce7; color: #166534; }
+  .rfq-status.cancelled { background: #fee2e2; color: #991b1b; }
+  #rfqQtyInput, #rfqNotesInput {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: var(--card-bg); color: var(--text);
+  }
+  .rfq-send-btn { margin-top: 8px; }
+
+  .activity-card { position: sticky; top: 76px; }
+  .activity-log {
+    list-style: none; margin: 0; padding: 0; max-height: 640px; overflow-y: auto;
+  }
+  .log-entry {
+    display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px;
+    padding: 6px 0; border-bottom: 1px dashed var(--border);
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-icon { flex-shrink: 0; }
+  .log-time { color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .log-text { flex: 1; word-break: break-word; }
+  .log-human .log-text { color: #334155; font-style: italic; }
+  .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #94a3b8; margin-right: 6px;
+  }
+  .dot.pulse { background: var(--blue); animation: pulse .6s ease; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(29,78,216,.5); }
+    100% { box-shadow: 0 0 0 8px rgba(29,78,216,0); }
+  }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--card-bg); border-radius: 12px; padding: 24px;
+    max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal h2 { font-size: 16px; }
+  .modal-warn { font-size: 12.5px; color: var(--text-muted); margin: 4px 0 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+  footer.site-footer {
+    padding: 20px 24px 40px; font-size: 12px; color: var(--text-muted); text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div id="busyBar" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div>
+      <h1>TAAMs Import Sourcing Desk</h1>
+      <p>Find &amp; source verified Korean food imports -- with your agent, or by hand.</p>
+    </div>
+    <span id="agentBadge" class="badge">Checking for agent tools...</span>
+  </header>
+
+  <main class="layout">
+
+    <section class="col col-product" aria-label="Product">
+      <div class="search-wrap">
+        <label for="searchInput" class="visually-hidden">Search a product</label>
+        <input id="searchInput" type="text" placeholder="Search a product... (English or Korean)" autocomplete="off">
+        <ul id="searchResults" class="search-results hidden"></ul>
+      </div>
+
+      <div id="productEmpty" class="card empty-hint">
+        Search a product above, or open this page in a WebMCP-enabled browser and ask your agent to look one up.
+      </div>
+
+      <div id="productCard" class="card hidden">
+        <div class="product-title">
+          <span id="productNamePrimary"></span>
+          <span id="productNameSecondary"></span>
+        </div>
+        <div id="productPrice">--</div>
+        <div id="priceNote" class="price-note hidden"></div>
+        <div id="priceSparkline"></div>
+        <div class="product-actions">
+          <button id="pinBtn" class="btn btn-primary" data-action="pin">+ Pin to comparison board</button>
+          <button class="btn btn-ghost btn-secondary" data-action="draft-rfq">Draft sourcing request</button>
+        </div>
+        <h4>Active Korean importers <span class="hint">(last 12 months)</span></h4>
+        <ul id="importerList"><li class="empty-row">No product loaded yet.</li></ul>
+      </div>
+    </section>
+
+    <section class="col col-center" aria-label="Comparison and suppliers">
+      <div class="card">
+        <h3>Comparison board <span class="hint">(pin up to 3 products)</span></h3>
+        <div id="comparisonBoard" class="comparison-board"></div>
+      </div>
+
+      <div class="card" id="supplierPanel">
+        <h3 id="supplierProductLabel">Suppliers</h3>
+        <div id="countryChips" class="chips"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Country</th><th>Supplier</th><th>Clearances</th><th></th></tr></thead>
+            <tbody id="exporterTableBody"><tr><td colspan="4" class="empty-row">No product loaded yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card hidden" id="rfqCard">
+        <h3>Sourcing request <span id="rfqStatus" class="rfq-status"></span></h3>
+        <dl class="rfq-fields">
+          <dt>Product</dt><dd id="rfqProduct">--</dd>
+          <dt>Supplier</dt><dd id="rfqSupplier">--</dd>
+          <dt>Quantity</dt><dd id="rfqQty">--</dd>
+          <dt>Notes</dt><dd id="rfqNotes">--</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="col col-activity" aria-label="Agent activity">
+      <div class="card activity-card">
+        <h3><span id="activityDot" class="dot"></span>Agent Activity</h3>
+        <ul id="activityLog" class="activity-log"></ul>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    Built for the OpenAI WebMCP Challenge 2026. Data: TAAMs (Korea customs clearance records).
+  </footer>
+
+  <div id="rfqModal" class="modal-overlay hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="rfqModalTitle">
+    <div class="modal">
+      <h2 id="rfqModalTitle">Approve sourcing request?</h2>
+      <p class="modal-warn">Nothing is sent until you click Approve. Review the details below.</p>
+      <dl class="rfq-fields">
+        <dt>Product</dt><dd id="rfqModalProduct">--</dd>
+        <dt>Supplier</dt><dd id="rfqModalSupplier">--</dd>
+        <dt>Quantity</dt><dd id="rfqModalQty">--</dd>
+        <dt>Notes</dt><dd id="rfqModalNotes">--</dd>
+      </dl>
+      <div class="modal-actions">
+        <button id="rfqCancel" class="btn btn-ghost">Cancel</button>
+        <button id="rfqApprove" class="btn btn-primary">Approve &amp; open email</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // The ?v= token busts module caches. It must be identical in every import
+    // of a given file, here and in src/tools.js: the browser keys modules by
+    // URL, so './src/ui.js?v=10' and './src/ui.js' are two separate instances
+    // with two separate UI states — the agent would end up driving a different
+    // object than the person is looking at. Bump all of them together.
+    import { UI } from './src/ui.js?v=10';
+    import { Taams, priceWithheldReason } from './src/api.js?v=10';
+    import { registerTools } from './src/tools.js?v=10';
+
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    const agentBadge = document.getElementById('agentBadge');
+
+    // Register the WebMCP tools, then report what actually happened. The badge
+    // reflects the result of registration rather than a feature check, because
+    // "the API exists" and "our tools are live" are different claims and only
+    // the second one is useful to a visitor.
+    const registration = await registerTools();
+    if (registration.supported) {
+      agentBadge.textContent = `Agent tools: ${registration.names.length} ready`;
+      agentBadge.classList.add('badge-ready');
+    } else {
+      agentBadge.textContent = 'Agent tools: open this page in a WebMCP-enabled browser to let an agent use it';
+      agentBadge.classList.add('badge-off');
+    }
+
+    // Let the verification harness read registration state without scraping DOM.
+    window.__taams = { registration };
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[c]));
+    }
+
+    function dateRange(months = 12) {
+      const end = new Date();
+      const start = new Date();
+      start.setMonth(start.getMonth() - months);
+      const fmt = (d) => d.toISOString().slice(0, 10);
+      return { startDate: fmt(start), endDate: fmt(end) };
+    }
+
+    let searchTimer = null;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const q = searchInput.value.trim();
+      if (!q) { searchResults.classList.add('hidden'); searchResults.innerHTML = ''; return; }
+      searchTimer = setTimeout(() => runSearch(q), 300);
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(searchTimer);
+        const q = searchInput.value.trim();
+        if (q) runSearch(q);
+      }
+    });
+    document.addEventListener('click', (e) => {
+      if (!searchResults.contains(e.target) && e.target !== searchInput) {
+        searchResults.classList.add('hidden');
+      }
+    });
+
+    async function runSearch(query) {
+      try {
+        const { startDate, endDate } = dateRange(12);
+        const rows = await Taams.searchProducts({ query, startDate, endDate });
+        renderSearchResults(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        UI.agentSays(`Search failed: ${e.message}`);
+      }
+    }
+
+    function renderSearchResults(rows) {
+      searchResults.innerHTML = '';
+      if (!rows.length) {
+        searchResults.innerHTML = '<li class="no-results">No matching products</li>';
+        searchResults.classList.remove('hidden');
+        return;
+      }
+      for (const r of rows.slice(0, 10)) {
+        const li = document.createElement('li');
+        // English first here too. This dropdown is the first thing anyone
+        // sees, and it was the last place still leading with Korean.
+        li.innerHTML = `<span class="res-kr">${escapeHtml(r.name_en || r.name)}</span>`
+          + `<span class="res-en">${escapeHtml(r.name_en ? r.name : '')}</span>`
+          + `<span class="res-cnt">${r.totalCount ?? ''}</span>`;
+        li.tabIndex = 0;
+        li.addEventListener('click', () => {
+          searchResults.classList.add('hidden');
+          searchInput.value = r.name_en ? `${r.name} (${r.name_en})` : r.name;
+          loadProduct(r.name, r.name_en);
+        });
+        searchResults.appendChild(li);
+      }
+      searchResults.classList.remove('hidden');
+    }
+
+    async function loadProduct(koreanName, nameEnHint) {
+      UI.setBusy(true);
+      UI.agentSays(`Loading "${koreanName}"...`);
+      try {
+        const year = new Date().getFullYear();
+        const { startDate, endDate } = dateRange(12);
+        const [dash, exp, imp] = await Promise.all([
+          Taams.priceDashboard({ item: koreanName, year }),
+          Taams.topExporters({ productName: koreanName, startDate, endDate }),
+          Taams.productImporters({ productName: koreanName, startDate, endDate }),
+        ]);
+        const withheld = priceWithheldReason(dash);
+        const data = {
+          nameEn: nameEnHint || '',
+          price: withheld ? null : dash?.current_avg,
+          priceEligible: dash?.price_eligible,
+          priceWithheldReason: withheld,
+          trend: dash?.weekly || [],
+          countries: dash?.countries || [],
+          exporters: (exp && exp.items) || [],
+          countryTotals: (exp && exp.country_totals) || {},
+          exporterTotal: exp && exp.exporter_total,
+          importers: Array.isArray(imp) ? imp : [],
+        };
+        UI.renderProduct(koreanName, data);
+        const priceText = withheld ? `price withheld: ${withheld}` : `avg ${data.price ? '$' + Number(data.price).toFixed(2) + '/kg' : 'n/a'}`;
+        UI.agentSays(`Loaded "${koreanName}" -- ${data.exporters.length} suppliers, ${data.importers.length} Korean importers, ${priceText}.`);
+      } catch (e) {
+        UI.agentSays(`Could not load "${koreanName}": ${e.message}`);
+      } finally {
+        UI.setBusy(false);
+      }
+    }
+
+    UI.agentSays('Ready. Search a product above, or open this page in a WebMCP-enabled browser and ask your agent.');
+  </script>
+</body>
+</html>
