@@ -36,7 +36,12 @@ TAKE_B = pathlib.Path(r"C:/Users/glone/Videos/Captures/ChatGPT 2026-09-01 22-20-
 NARRATION = pathlib.Path(r"C:/WORK/trim_0.35.m4a")
 OUT = ROOT / "shots" / "TAAMs-WebMCP-demo.mp4"
 
-W, H, FPS = 1920, 1080, 30
+# Output is 1440p, not 1080p, and not because the source has that much detail —
+# it does not. YouTube allocates a markedly higher bitrate ceiling to 1440p and
+# above, and encodes those uploads with VP9 rather than the thriftier profile it
+# gives 1080p. The 1080p rendition a viewer ends up watching is visibly cleaner
+# for it. The text in this video is small enough that the difference shows.
+W, H, FPS = 2560, 1440, 30
 
 # Screen recordings are the hard case for a codec: hard edges, small text, flat
 # colour. Three things were costing quality here.
@@ -50,8 +55,28 @@ W, H, FPS = 1920, 1080, 30
 #  3. CRF 19 is a fine number for camera footage and too coarse for a page of
 #     4pt table rows.
 CRF_INTERMEDIATE = "12"    # visually lossless working copies
-CRF_FINAL = "15"
 SCALE_FLAGS = "flags=lanczos+accurate_rnd+full_chroma_int"
+
+# The final pass targets a bitrate rather than a quality level, and that is a
+# deliberate reversal. CRF gives the encoder a quality goal and lets the bitrate
+# fall wherever it likes — on screen recordings, which are mostly flat colour,
+# CRF 15 landed at 0.89 Mbps. That looked clean locally and then went to YouTube,
+# which re-encodes every upload: handed a thin stream it re-compresses a
+# re-compression, and the text softens on the way. YouTube asks for ~8 Mbps at
+# 1080p30, so the file is made fat on purpose. It is an upload master, not a
+# download.
+BITRATE_FINAL = "20M"      # YouTube asks ~16 Mbps at 1440p30; aim above it
+BITRATE_MAX = "26M"
+BUFSIZE = "40M"
+
+# Type sizes and margins below were chosen against a 1080-tall frame and are in
+# absolute pixels, so they have to grow with the canvas or the captions shrink
+# relative to everything else.
+S = H / 1080.0
+
+
+def px(v: float) -> int:
+    return int(round(v * S))
 FONT = "C\\:/Windows/Fonts/segoeui.ttf"        # ffmpeg wants the colon escaped
 FONT_B = "C\\:/Windows/Fonts/segoeuib.ttf"
 
@@ -103,17 +128,19 @@ def title_card(path: pathlib.Path) -> None:
     black reads faster anyway.
     """
     lines = [
-        # (text, size, y, appear, disappear)
-        ("Is this a real supplier?", 74, "(h/2)-90", 0.6, 11.6),
-        ("Is this a real price?", 74, "(h/2)+10", 2.6, 11.6),
-        ("Today: customs portals, cold calls, guesswork.", 38, "(h/2)+140", 5.6, 11.6),
+        # (text, size, y-offset from centre, appear, disappear) — 1080-scale
+        ("Is this a real supplier?", 74, -90, 0.6, 11.6),
+        ("Is this a real price?", 74, 10, 2.6, 11.6),
+        ("Today: customs portals, cold calls, guesswork.", 38, 140, 5.6, 11.6),
     ]
     draws = []
-    for text, size, y, t0, t1 in lines:
+    for text, size, dy, t0, t1 in lines:
         colour = "white" if size >= 70 else "0xC7CCD6"
+        sign = "+" if dy >= 0 else "-"
         draws.append(
             f"drawtext=fontfile='{FONT}':text='{esc(text)}':"
-            f"fontsize={size}:fontcolor={colour}:x=(w-text_w)/2:y={y}:"
+            f"fontsize={px(size)}:fontcolor={colour}:x=(w-text_w)/2:"
+            f"y=(h/2){sign}{px(abs(dy))}:"
             f"enable='between(t,{t0},{t1})':alpha='min(1,(t-{t0})*1.6)'"
         )
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
@@ -148,10 +175,12 @@ def freeze(src: pathlib.Path, at: float, dur: float, out: pathlib.Path) -> None:
     vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease:{SCALE_FLAGS},"
           f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x0B0E14,setsar=1,"
           f"drawtext=fontfile='{FONT_B}':text='taams-sourcing-desk.netlify.app':"
-          f"fontsize=44:fontcolor=white:box=1:boxcolor=0x0B0E14@0.85:boxborderw=18:"
-          f"x=(w-text_w)/2:y=h-190:enable='gte(t,1.5)',"
+          f"fontsize={px(44)}:fontcolor=white:box=1:boxcolor=0x0B0E14@0.85:"
+          f"boxborderw={px(18)}:"
+          f"x=(w-text_w)/2:y=h-{px(190)}:enable='gte(t,1.5)',"
           f"drawtext=fontfile='{FONT}':text='MIT licensed':"
-          f"fontsize=30:fontcolor=0xC7CCD6:x=(w-text_w)/2:y=h-120:enable='gte(t,2.5)'")
+          f"fontsize={px(30)}:fontcolor=0xC7CCD6:x=(w-text_w)/2:y=h-{px(120)}:"
+          f"enable='gte(t,2.5)'")
     run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
          "-loop", "1", "-i", str(still), "-t", str(dur), "-r", str(FPS),
          "-vf", vf, "-c:v", "libx264", "-preset", "fast",
@@ -175,9 +204,9 @@ def caption_filter() -> str:
     out = []
     for text, t0, t1 in CAPTIONS:
         out.append(
-            f"drawtext=fontfile='{FONT_B}':text='{esc(text)}':fontsize=40:"
-            f"fontcolor=white:box=1:boxcolor=0x1D4ED8@0.92:boxborderw=16:"
-            f"x=64:y=h-140:enable='between(t,{t0},{t1})'"
+            f"drawtext=fontfile='{FONT_B}':text='{esc(text)}':fontsize={px(40)}:"
+            f"fontcolor=white:box=1:boxcolor=0x1D4ED8@0.92:boxborderw={px(16)}:"
+            f"x={px(64)}:y=h-{px(140)}:enable='between(t,{t0},{t1})'"
         )
     return ",".join(out)
 
@@ -251,8 +280,9 @@ def main() -> int:
          "-vf", caption_filter(),
          "-af", f"afade=t=out:st={max(0.0, voice - 0.7):.2f}:d=0.7",
          "-map", "0:v", "-map", "1:a",
-         "-c:v", "libx264", "-preset", "slow", "-crf", CRF_FINAL,
-         "-x264-params", "aq-mode=3:psy-rd=0.4:deblock=-1,-1",
+         "-c:v", "libx264", "-preset", "slow",
+         "-b:v", BITRATE_FINAL, "-maxrate", BITRATE_MAX, "-bufsize", BUFSIZE,
+         "-x264-params", "aq-mode=3:psy-rd=0.4:deblock=-1,-1:keyint=60",
          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
          str(OUT)])
 
